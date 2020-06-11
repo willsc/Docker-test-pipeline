@@ -1,6 +1,6 @@
-node {
-    def app
-
+pipeline {
+    agent any 
+      stages { 
     stage('Initialize') {
             steps  {
              script {
@@ -42,5 +42,7 @@ node {
             app.push("${env.BUILD_NUMBER}")
             app.push("latest")
         }
-    }
+     }
+  }
+
 }
