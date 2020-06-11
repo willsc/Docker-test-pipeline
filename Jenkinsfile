@@ -33,7 +33,7 @@ pipeline {
             sh 'echo "Tests passed"'
         }
      }  
-    }
-
+   }
+ }
     
 }
