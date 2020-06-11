@@ -1,6 +1,16 @@
 node {
     def app
 
+    stage('Initialize') {
+            steps  {
+             script {
+             def dockerHome = tool 'Dockertools'
+             env.PATH = "${dockerHome}/bin:${env.PATH}"
+             }
+            } 
+        }  
+
+
     stage('Clone repository') {
         /* Let's make sure we have the repository cloned to our workspace */
 
