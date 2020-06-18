@@ -1,39 +1,59 @@
-pipeline {
-    agent any 
-      stages { 
-    stage('Initialize') {
-            steps  {
-             script {
-             def dockerHome = tool 'Dockertools'
-             env.PATH = "${dockerHome}/bin:${env.PATH}"
-             }
-            } 
-        }  
+def label = "worker-${UUID.randomUUID().toString()}"
 
-
-    stage('Clone repository') {
-        /* Let's make sure we have the repository cloned to our workspace */
-      steps { 
-        checkout scm
+podTemplate(label: label, containers: [
+  containerTemplate(name: 'gradle', image: 'gradle:4.5.1-jdk9', command: 'cat', ttyEnabled: true),
+  containerTemplate(name: 'docker', image: 'docker', command: 'cat', ttyEnabled: true),
+  containerTemplate(name: 'kubectl', image: 'lachlanevenson/k8s-kubectl:v1.8.8', command: 'cat', ttyEnabled: true),
+ 
+],
+volumes: [
+  hostPathVolume(mountPath: '/home/gradle/.gradle', hostPath: '/tmp/jenkins/.gradle'),
+  hostPathVolume(mountPath: '/var/run/docker.sock', hostPath: '/var/run/docker.sock')
+]) {
+  node(label) {
+    def myRepo = checkout scm
+    def gitCommit = myRepo.GIT_COMMIT
+    def gitBranch = myRepo.GIT_BRANCH
+    def shortGitCommit = "${gitCommit[0..10]}"
+    def previousGitCommit = sh(script: "git rev-parse ${gitCommit}~", returnStdout: true)
+ 
+    stage('Test') {
+      try {
+        container('gradle') {
+          sh """
+            pwd
+            echo "GIT_BRANCH=${gitBranch}" >> /etc/environment
+            echo "GIT_COMMIT=${gitCommit}" >> /etc/environment
+            gradle test
+            """
+        }
+      }
+      catch (exc) {
+        println "Failed to test - ${currentBuild.fullDisplayName}"
+        throw(exc)
       }
     }
-
-    stage('Build image') {
-       
-     steps {
-          sh 'docker build . -t getintodevops-hellonode:1'
-        }
+    stage('Build') {
+      container('gradle') {
+        sh "gradle build"
+      }
     }
-
-    stage('Test image') {
-        /* Ideally, we would run a test framework against our image.
-         * For this example, we're using a Volkswagen-type approach ;-) */
-    steps {
+    stage('Create Docker images') {
+      container('docker') {
         
-            sh 'echo "Tests passed"'
-        
-     }  
-   }
- }
+          sh """
+            docker login -u willsgft -p Sitn12go3251
+            docker build -t namespace/my-image:${gitCommit} .
+            docker push namespace/my-image:${gitCommit}
+            """
+        }
+      }
+    }
+    stage('Run kubectl') {
+      container('kubectl') {
+        sh "kubectl get pods"
+      }
+    }
     
+  }
 }
