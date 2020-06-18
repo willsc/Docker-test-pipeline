@@ -1,59 +1,36 @@
 def label = "worker-${UUID.randomUUID().toString()}"
 
 podTemplate(label: label, containers: [
-  containerTemplate(name: 'gradle', image: 'gradle:4.5.1-jdk9', command: 'cat', ttyEnabled: true),
-  containerTemplate(name: 'docker', image: 'docker', command: 'cat', ttyEnabled: true),
-  containerTemplate(name: 'kubectl', image: 'lachlanevenson/k8s-kubectl:v1.8.8', command: 'cat', ttyEnabled: true),
- 
+  containerTemplate(
+        name: 'kubectl',
+        image: 'seldonio/k8s-deployer:k8s_v1.14.0',
+        command: 'cat',
+        ttyEnabled: true,
+        envVars: [
+            secretEnvVar(key: 'GITHUB_USER', secretName: 'github-credentials', secretKey: 'user'),
+            secretEnvVar(key: 'GITHUB_TOKEN', secretName: 'github-credentials', secretKey: 'token')
+        ]),
 ],
 volumes: [
-  hostPathVolume(mountPath: '/home/gradle/.gradle', hostPath: '/tmp/jenkins/.gradle'),
   hostPathVolume(mountPath: '/var/run/docker.sock', hostPath: '/var/run/docker.sock')
 ]) {
   node(label) {
+
     def myRepo = checkout scm
     def gitCommit = myRepo.GIT_COMMIT
     def gitBranch = myRepo.GIT_BRANCH
-    def shortGitCommit = "${gitCommit[0..10]}"
-    def previousGitCommit = sh(script: "git rev-parse ${gitCommit}~", returnStdout: true)
- 
-    stage('Test') {
-      try {
-        container('gradle') {
-          sh """
-            pwd
-            echo "GIT_BRANCH=${gitBranch}" >> /etc/environment
-            echo "GIT_COMMIT=${gitCommit}" >> /etc/environment
-            gradle test
-            """
-        }
-      }
-      catch (exc) {
-        println "Failed to test - ${currentBuild.fullDisplayName}"
-        throw(exc)
-      }
-    }
-    stage('Build') {
-      container('gradle') {
-        sh "gradle build"
-      }
-    }
-    stage('Create Docker images') {
-      container('docker') {
-        
-          sh """
-            docker login -u willsgft -p Sitn12go3251
-            docker build -t namespace/my-image:${gitCommit} .
-            docker push namespace/my-image:${gitCommit}
-            """
-        }
-      }
-    }
-    stage('Run kubectl') {
+
+    stage('activity-monitor') {
       container('kubectl') {
-        sh "kubectl get pods"
+        sh "curl -s activity-monitor.default.svc.cluster.local:80/?'(JENKINS) build-model-images-job run for v'${BUILD_ID} > /dev/null"
       }
     }
-    
+    stage('build-model') {
+      container('kubectl') {
+        sh 'pwd'
+        sh 'ls -al'
+        sh "make -f Makefile.build-model-images-job do_build MODEL_VERSION=v${BUILD_ID}"
+      }
+    }
   }
 }
