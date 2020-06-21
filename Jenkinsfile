@@ -3,11 +3,7 @@ podTemplate(
     label: 'test-pod',
     containers: [
         containerTemplate(name: 'golang', image: 'golang:1.9.4-alpine3.7'),
-        containerTemplate(name: 'docker', image:'trion/jenkins-docker-client'),
-    ],
-    volumes: [
-        hostPathVolume(mountPath: '/var/run/docker.sock',
-        hostPath: '/var/run/docker.sock',
+        containerTemplate(name: 'gcloud', image:'gcr.io/cloud-builders/gcloud'),
     ],
     {
         //node = the pod label
@@ -19,9 +15,9 @@ podTemplate(
                 }
             }
             stage('Build Docker Image'){
-                container(‘docker’){
-                    // This is where we build the Docker image
+                container(‘gcloud’){
+                    //This is where we build and push our Docker image.
                 }
             }
         }
-    }
+    })
