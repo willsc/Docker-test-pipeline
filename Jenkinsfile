@@ -1,17 +1,27 @@
-def label = "worker-${UUID.randomUUID().toString()}"
-
-podTemplate(label: label, containers: [
-  containerTemplate(name: 'kubectl', image: 'seldonio/k8s-deployer:k8s_v1.10.0', command: 'cat', ttyEnabled: true),
-],
-volumes: [
-  hostPathVolume(mountPath: '/var/run/docker.sock', hostPath: '/var/run/docker.sock')
-]) {
-  node(label) {
-    stage('Run kubectl') {
-      container('kubectl') {
-        sh "kubectl version"
-        sh "kubectl -n default get pods"
-      }
-    }
-  }
-}
+podTemplate(
+    name: 'test-pod',
+    label: 'test-pod',
+    containers: [
+        containerTemplate(name: 'golang', image: 'golang:1.9.4-alpine3.7'),
+        containerTemplate(name: 'docker', image:'trion/jenkins-docker-client'),
+    ],
+    volumes: [
+        hostPathVolume(mountPath: '/var/run/docker.sock',
+        hostPath: '/var/run/docker.sock',
+    ],
+    {
+        //node = the pod label
+        node('test-pod'){
+            //container = the container label
+            stage('Build'){
+                container('golang'){
+                    // This is where we build our code.
+                }
+            }
+            stage('Build Docker Image'){
+                container(‘docker’){
+                    // This is where we build the Docker image
+                }
+            }
+        }
+    })
